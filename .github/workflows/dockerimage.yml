@@ -8,11 +8,95 @@ on:
 
 jobs:
 
-  build:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Run tests
+        run: |
+            docker build . --file Dockerfile -t image
+            docker run -it --rm image python -m tox -l | grep '3.6-dev' &> /dev/null
+            if [ $? -eq 1 ]; then
+              echo "Python 3.6 not found in environment"
+              exit 1
+            fi
+            docker run -it --rm image python -m tox -l | grep '3.7-dev' &> /dev/null
+            if [ $? -eq 1 ]; then
+              echo "Python 3.7 not found in environment"
+              exit 1
+            fi
+            docker run -it --rm image python -m pyenv global | grep '3.8-dev' &> /dev/null
+            if [ $? -eq 1 ]; then
+              echo "Python 3.8 not found in environment"
+              exit 1
+            fi
+            docker run -it --rm image python -m tox -l | grep '3.9-dev' &> /dev/null
+            if [ $? -eq 1 ]; then
+              echo "Python 3.9 not found in environment"
+              exit 1
+            fi
+            docker run -it --rm image python -m tox -l | grep 'system' &> /dev/null
+            if [ $? -eq 1 ]; then
+              echo "System python not found in environment"
+              exit 1
+            fi
+
+  push:
 
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
-    - name: Build the Docker image
-      run: docker build . --file Dockerfile --tag my-image-name:$(date +%s)
+      - uses: actions/checkout@v2
+     
+      - name: Build image
+        run: docker build . --file Dockerfile --tag image
+    
+      - name: Log into Docker Hub Registry
+        run: echo "${{ secrets.DOCKERHUB_PASS }}" | docker login -u ${{ secrets.DOCKERHUB_USER }} --password-stdin
+    
+      - name: Push Docker Image To Dockerhub
+        run: |
+          IMAGE_ID=theculliganman/folding-at-home
+          # Strip git ref prefix from version
+          VERSION=$(echo "${{ github.ref }}" | sed -e 's,.*/\(.*\),\1,')
+          # Strip "v" prefix from tag name
+          [[ "${{ github.ref }}" == "refs/tags/"* ]] && VERSION=$(echo $VERSION | sed -e 's/^v//')
+          # Use Docker `latest` tag convention
+          [ "$VERSION" == "master" ] && VERSION=latest
+          echo IMAGE_ID=$IMAGE_ID
+          echo VERSION=$VERSION
+          SHORT_SHA=$(echo ${GITHUB_SHA:0:7})
+
+          docker tag image $IMAGE_ID:$VERSION
+          docker push $IMAGE_ID:$VERSION
+          docker tag image $IMAGE_ID:master-$SHORT_SHA
+          docker push $IMAGE_ID:master-$SHORT_SHA
+
+      - name: Log Out of Docker Hub Registry
+        run: docker logout
+
+      - name: Log into Github Docker Registry
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login docker.pkg.github.com -u ${{ github.actor }} --password-stdin
+      
+      - name: Push Image to Github Docker Registry
+        run: |
+          GITHUB_REPO=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          IMAGE_ID=docker.pkg.github.com/$GITHUB_REPO/$IMAGE_NAME
+          # Strip git ref prefix from version
+          VERSION=$(echo "${{ github.ref }}" | sed -e 's,.*/\(.*\),\1,')
+          # Strip "v" prefix from tag name
+          [[ "${{ github.ref }}" == "refs/tags/"* ]] && VERSION=$(echo $VERSION | sed -e 's/^v//')
+          # Use Docker `latest` tag convention
+          [ "$VERSION" == "master" ] && VERSION=latest
+          echo IMAGE_ID=$IMAGE_ID
+          echo VERSION=$VERSION
+          SHORT_SHA=$(echo ${GITHUB_SHA:0:7})
+          docker tag image $IMAGE_ID:$VERSION
+          docker push $IMAGE_ID:$VERSION
+          docker tag image $IMAGE_ID:master-$SHORT_SHA
+          docker push $IMAGE_ID:master-$SHORT_SHA
+
+      - name: Log Out of Github Docker Registry
+        run: docker logout
