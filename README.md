@@ -4,3 +4,15 @@
 
 A tox docker image for running tests against multiple versions of python
 
+Docker Hub
+
+```bash
+docker pull theculliganman/docker-tox:latest
+```
+
+GitHub
+
+```bash
+docker pull docker.pkg.github.com/theculliganman/docker-tox/docker-tox:master-1e2b07a
+```
+
