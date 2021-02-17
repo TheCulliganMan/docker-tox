@@ -21,11 +21,6 @@ jobs:
       - name: Run tests
         run: |
             docker build . --file Dockerfile -t ${IMAGE_NAME}
-            docker run --rm ${IMAGE_NAME} pyenv global | grep '3.6-dev' &> /dev/null
-            if [ $? -eq 1 ]; then
-              echo "Python 3.6 not found in environment"
-              exit 1
-            fi
             docker run --rm ${IMAGE_NAME} pyenv global | grep '3.7-dev' &> /dev/null
             if [ $? -eq 1 ]; then
               echo "Python 3.7 not found in environment"
